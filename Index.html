@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Cadence Runner</title>
+<style>
+  :root{
+    --bg:#111;
+    --panel:#1d1d1f;
+    --panel2:#252528;
+    --text:#f5f5f7;
+    --muted:#a1a1a6;
+    --accent:#0a84ff;
+    --good:#30d158;
+    --warn:#ff9f0a;
+    --border:#3a3a3c;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wrap{
+    max-width:720px;
+    margin:0 auto;
+    padding:18px 14px calc(28px + env(safe-area-inset-bottom));
+  }
+  h1{font-size:28px;margin:4px 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .hero{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:20px;
+    text-align:center;
+    margin-bottom:14px;
+  }
+  .label{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .bpm{font-size:62px;font-weight:800;line-height:1;margin:6px 0 2px}
+  .time{font-size:36px;font-variant-numeric:tabular-nums;margin:8px 0}
+  .next{color:var(--muted);font-size:15px}
+  .pulse{
+    width:88px;height:88px;border-radius:50%;
+    margin:16px auto 6px;
+    background:#3a3a3c;
+    transform:scale(1);
+    transition:transform .08s ease, background .08s ease;
+  }
+  .pulse.on{transform:scale(1.18);background:var(--accent)}
+  .progress{
+    height:7px;border-radius:999px;background:#333;overflow:hidden;margin-top:16px
+  }
+  .bar{height:100%;width:0%;background:var(--accent);transition:width .1s linear}
+  .controls{
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:14px 0
+  }
+  button{
+    appearance:none;border:0;border-radius:14px;
+    min-height:50px;padding:12px 14px;
+    font-size:16px;font-weight:700;
+    color:#fff;background:var(--panel2);
+  }
+  button.primary{background:var(--accent)}
+  button.good{background:var(--good);color:#071507}
+  button:disabled{opacity:.4}
+  .section{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:14px;
+    margin-top:14px;
+  }
+  .section h2{font-size:18px;margin:0 0 12px}
+  .row{
+    display:grid;
+    grid-template-columns:1fr 1fr auto;
+    gap:8px;
+    align-items:end;
+    padding:10px 0;
+    border-bottom:1px solid #2f2f32;
+  }
+  .row:last-child{border-bottom:0}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  input{
+    width:100%;min-height:44px;border-radius:11px;border:1px solid var(--border);
+    background:#111;color:#fff;font-size:17px;padding:8px 10px;
+  }
+  .remove{width:44px;min-width:44px;padding:0;background:#3a2020}
+  .footer-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .settings{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .check{
+    display:flex;gap:10px;align-items:center;margin-top:12px;color:var(--muted);font-size:14px
+  }
+  .check input{width:22px;height:22px;min-height:auto}
+  .status{min-height:20px;color:var(--warn);font-size:13px;margin-top:8px}
+  @media (max-width:430px){
+    .bpm{font-size:54px}
+    .time{font-size:32px}
+    .controls{grid-template-columns:1fr 1fr}
+    .controls button:last-child{grid-column:span 2}
+    .settings{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Cadence Runner</h1>
+  <div class="sub">Offline programmable running metronome</div>
+
+  <div class="hero">
+    <div class="label">Current cadence</div>
+    <div class="bpm"><span id="bpmDisplay">60</span> <span style="font-size:18px;font-weight:600">BPM</span></div>
+    <div class="pulse" id="pulse"></div>
+    <div class="time" id="timeDisplay">01:00</div>
+    <div class="next" id="nextDisplay">Next: 50 BPM · 20 sec</div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="good" id="startBtn">▶ Start</button>
+    <button id="pauseBtn" disabled>⏸ Pause</button>
+    <button id="resetBtn">↺ Reset</button>
+  </div>
+
+  <div class="section">
+    <h2>Workout stages</h2>
+    <div id="stages"></div>
+    <div class="footer-actions">
+      <button id="addBtn">＋ Add stage</button>
+      <button id="presetBtn">Load sample</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Workout settings</h2>
+    <div class="settings">
+      <div>
+        <label for="repeatCount">Repeat full sequence</label>
+        <input id="repeatCount" type="number" inputmode="numeric" min="1" max="99" value="1">
+      </div>
+      <div>
+        <label>Total workout</label>
+        <input id="totalDisplay" type="text" value="02:00" readonly>
+      </div>
+    </div>
+    <div class="check">
+      <input id="accentFirst" type="checkbox" checked>
+      <label for="accentFirst" style="margin:0;color:inherit">Higher-pitched first beat when each stage starts</label>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const root = document;
+  const stagesEl = root.getElementById('stages');
+  const bpmDisplay = root.getElementById('bpmDisplay');
+  const timeDisplay = root.getElementById('timeDisplay');
+  const nextDisplay = root.getElementById('nextDisplay');
+  const bar = root.getElementById('bar');
+  const pulse = root.getElementById('pulse');
+  const startBtn = root.getElementById('startBtn');
+  const pauseBtn = root.getElementById('pauseBtn');
+  const resetBtn = root.getElementById('resetBtn');
+  const addBtn = root.getElementById('addBtn');
+  const presetBtn = root.getElementById('presetBtn');
+  const repeatCount = root.getElementById('repeatCount');
+  const totalDisplay = root.getElementById('totalDisplay');
+  const accentFirst = root.getElementById('accentFirst');
+  const status = root.getElementById('status');
+
+  let stages = [
+    {bpm:60, duration:60},
+    {bpm:50, duration:20},
+    {bpm:99, duration:20},
+    {bpm:70, duration:20}
+  ];
+
+  let audioCtx = null;
+  let running = false;
+  let paused = false;
+  let stageIndex = 0;
+  let repeatIndex = 0;
+  let stageStartPerf = 0;
+  let stageElapsedBeforePause = 0;
+  let nextBeatPerf = 0;
+  let beatTimer = null;
+  let uiTimer = null;
+  let firstBeatOfStage = true;
+
+  const clamp = (n,min,max) => Math.max(min, Math.min(max,n));
+
+  function formatTime(sec){
+    sec = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(sec/60);
+    const s = sec%60;
+    return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  }
+
+  function sanitizeStage(s){
+    return {
+      bpm: clamp(Number(s.bpm)||60, 20, 240),
+      duration: clamp(Number(s.duration)||20, 1, 3600)
+    };
+  }
+
+  function renderStages(){
+    stagesEl.innerHTML = '';
+    stages.forEach((s,i) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const bpmWrap = document.createElement('div');
+      const bpmLabel = document.createElement('label');
+      bpmLabel.textContent = `Stage ${i+1} BPM`;
+      const bpmInput = document.createElement('input');
+      bpmInput.type = 'number';
+      bpmInput.inputMode = 'numeric';
+      bpmInput.min = '20';
+      bpmInput.max = '240';
+      bpmInput.value = s.bpm;
+      bpmInput.disabled = running;
+      bpmInput.addEventListener('change', () => {
+        stages[i].bpm = clamp(Number(bpmInput.value)||60,20,240);
+        bpmInput.value = stages[i].bpm;
+        updateSummary();
+      });
+      bpmWrap.append(bpmLabel,bpmInput);
+
+      const durWrap = document.createElement('div');
+      const durLabel = document.createElement('label');
+      durLabel.textContent = 'Seconds';
+      const durInput = document.createElement('input');
+      durInput.type = 'number';
+      durInput.inputMode = 'numeric';
+      durInput.min = '1';
+      durInput.max = '3600';
+      durInput.value = s.duration;
+      durInput.disabled = running;
+      durInput.addEventListener('change', () => {
+        stages[i].duration = clamp(Number(durInput.value)||20,1,3600);
+        durInput.value = stages[i].duration;
+        updateSummary();
+      });
+      durWrap.append(durLabel,durInput);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'remove';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', `Remove stage ${i+1}`);
+      remove.disabled = running || stages.length <= 1;
+      remove.addEventListener('click', () => {
+        if(stages.length > 1){
+          stages.splice(i,1);
+          renderStages();
+          updateSummary();
+        }
+      });
+
+      row.append(bpmWrap,durWrap,remove);
+      stagesEl.appendChild(row);
+    });
+  }
+
+  function updateSummary(){
+    const reps = clamp(Number(repeatCount.value)||1,1,99);
+    repeatCount.value = reps;
+    const total = stages.reduce((sum,s)=>sum + sanitizeStage(s).duration,0) * reps;
+    totalDisplay.value = formatTime(total);
+
+    const current = stages[0] || {bpm:60,duration:60};
+    bpmDisplay.textContent = current.bpm;
+    timeDisplay.textContent = formatTime(current.duration);
+    if(stages.length > 1){
+      nextDisplay.textContent = `Next: ${stages[1].bpm} BPM · ${stages[1].duration} sec`;
+    } else {
+      nextDisplay.textContent = 'Single-stage workout';
+    }
+  }
+
+  function ensureAudio(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function clickSound(accent=false){
+    if(!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = accent ? 1100 : 760;
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(0.35, now + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.06);
+
+    pulse.classList.add('on');
+    setTimeout(()=>pulse.classList.remove('on'),90);
+  }
+
+  function currentStage(){
+    return sanitizeStage(stages[stageIndex]);
+  }
+
+  function updateNow(){
+    if(!running) return;
+    const st = currentStage();
+    const elapsed = paused
+      ? stageElapsedBeforePause / 1000
+      : (performance.now() - stageStartPerf + stageElapsedBeforePause) / 1000;
+    const remaining = st.duration - elapsed;
+    bpmDisplay.textContent = st.bpm;
+    timeDisplay.textContent = formatTime(remaining);
+    bar.style.width = `${clamp((elapsed/st.duration)*100,0,100)}%`;
+
+    let nextIdx = stageIndex + 1;
+    let nextRep = repeatIndex;
+    if(nextIdx >= stages.length){
+      nextIdx = 0;
+      nextRep += 1;
+    }
+    const reps = clamp(Number(repeatCount.value)||1,1,99);
+    if(nextRep < reps){
+      const n = sanitizeStage(stages[nextIdx]);
+      nextDisplay.textContent = `Next: ${n.bpm} BPM · ${n.duration} sec`;
+    } else {
+      nextDisplay.textContent = 'Final stage';
+    }
+
+    if(!paused && remaining <= 0){
+      advanceStage();
+    }
+  }
+
+  function scheduleBeatLoop(){
+    clearTimeout(beatTimer);
+    if(!running || paused) return;
+
+    const st = currentStage();
+    const beatMs = 60000 / st.bpm;
+    const now = performance.now();
+
+    if(nextBeatPerf <= now - 250) nextBeatPerf = now;
+
+    if(now >= nextBeatPerf - 8){
+      clickSound(firstBeatOfStage && accentFirst.checked);
+      firstBeatOfStage = false;
+      nextBeatPerf += beatMs;
+    }
+
+    const wait = Math.max(5, Math.min(25, nextBeatPerf - performance.now() - 4));
+    beatTimer = setTimeout(scheduleBeatLoop, wait);
+  }
+
+  function advanceStage(){
+    stageIndex++;
+    if(stageIndex >= stages.length){
+      stageIndex = 0;
+      repeatIndex++;
+    }
+    const reps = clamp(Number(repeatCount.value)||1,1,99);
+    if(repeatIndex >= reps){
+      finishWorkout();
+      return;
+    }
+    stageElapsedBeforePause = 0;
+    stageStartPerf = performance.now();
+    nextBeatPerf = performance.now();
+    firstBeatOfStage = true;
+    updateNow();
+  }
+
+  function startWorkout(){
+    ensureAudio();
+
+    if(!running){
+      running = true;
+      paused = false;
+      stageIndex = 0;
+      repeatIndex = 0;
+      stageElapsedBeforePause = 0;
+      stageStartPerf = performance.now();
+      nextBeatPerf = performance.now();
+      firstBeatOfStage = true;
+      status.textContent = 'Running';
+    } else if(paused){
+      paused = false;
+      stageStartPerf = performance.now();
+      nextBeatPerf = performance.now();
+      status.textContent = 'Running';
+    }
+
+    renderStages();
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    addBtn.disabled = true;
+    presetBtn.disabled = true;
+    repeatCount.disabled = true;
+
+    clearInterval(uiTimer);
+    uiTimer = setInterval(updateNow,100);
+    scheduleBeatLoop();
+    updateNow();
+  }
+
+  function pauseWorkout(){
+    if(!running || paused) return;
+    stageElapsedBeforePause += performance.now() - stageStartPerf;
+    paused = true;
+    clearTimeout(beatTimer);
+    pauseBtn.disabled = true;
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ Resume';
+    status.textContent = 'Paused';
+    updateNow();
+  }
+
+  function finishWorkout(){
+    running = false;
+    paused = false;
+    clearTimeout(beatTimer);
+    clearInterval(uiTimer);
+    bar.style.width = '100%';
+    timeDisplay.textContent = '00:00';
+    nextDisplay.textContent = 'Workout complete';
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ Start';
+    pauseBtn.disabled = true;
+    addBtn.disabled = false;
+    presetBtn.disabled = false;
+    repeatCount.disabled = false;
+    status.textContent = 'Workout complete';
+    renderStages();
+  }
+
+  function resetWorkout(){
+    running = false;
+    paused = false;
+    clearTimeout(beatTimer);
+    clearInterval(uiTimer);
+    stageIndex = 0;
+    repeatIndex = 0;
+    stageElapsedBeforePause = 0;
+    bar.style.width = '0%';
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ Start';
+    pauseBtn.disabled = true;
+    addBtn.disabled = false;
+    presetBtn.disabled = false;
+    repeatCount.disabled = false;
+    status.textContent = '';
+    renderStages();
+    updateSummary();
+  }
+
+  startBtn.addEventListener('click', startWorkout);
+  pauseBtn.addEventListener('click', pauseWorkout);
+  resetBtn.addEventListener('click', resetWorkout);
+
+  addBtn.addEventListener('click', () => {
+    if(stages.length >= 30){
+      status.textContent = 'Maximum 30 stages.';
+      return;
+    }
+    stages.push({bpm:80,duration:30});
+    renderStages();
+    updateSummary();
+  });
+
+  presetBtn.addEventListener('click', () => {
+    stages = [
+      {bpm:60,duration:60},
+      {bpm:50,duration:20},
+      {bpm:99,duration:20},
+      {bpm:70,duration:20}
+    ];
+    repeatCount.value = 1;
+    renderStages();
+    updateSummary();
+    status.textContent = 'Sample workout loaded.';
+  });
+
+  repeatCount.addEventListener('change', updateSummary);
+
+  renderStages();
+  updateSummary();
+})();
+</script>
+</body>
+</html>
